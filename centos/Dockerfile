@@ -1,100 +1,60 @@
-# Dockerfile - CentOS 7
+# Dockerfile - CentOS 7 - RPM version
 # https://github.com/openresty/docker-openresty
 
-FROM centos:7
+ARG RESTY_IMAGE_BASE="centos"
+ARG RESTY_IMAGE_TAG="7"
 
-MAINTAINER Evan Wies <evan@neomantra.net>
+FROM ${RESTY_IMAGE_BASE}:${RESTY_IMAGE_TAG}
 
-# Docker Build Arguments
-ARG RESTY_VERSION="1.11.2.2"
-ARG RESTY_LUAROCKS_VERSION="2.3.0"
-ARG RESTY_OPENSSL_VERSION="1.0.2j"
-ARG RESTY_PCRE_VERSION="8.39"
-ARG RESTY_J="1"
-ARG RESTY_CONFIG_OPTIONS="\
-    --with-file-aio \
-    --with-http_addition_module \
-    --with-http_auth_request_module \
-    --with-http_dav_module \
-    --with-http_flv_module \
-    --with-http_geoip_module=dynamic \
-    --with-http_gunzip_module \
-    --with-http_gzip_static_module \
-    --with-http_image_filter_module=dynamic \
-    --with-http_mp4_module \
-    --with-http_random_index_module \
-    --with-http_realip_module \
-    --with-http_secure_link_module \
-    --with-http_slice_module \
-    --with-http_ssl_module \
-    --with-http_stub_status_module \
-    --with-http_sub_module \
-    --with-http_v2_module \
-    --with-http_xslt_module=dynamic \
-    --with-ipv6 \
-    --with-mail \
-    --with-mail_ssl_module \
-    --with-md5-asm \
-    --with-pcre-jit \
-    --with-sha1-asm \
-    --with-stream \
-    --with-stream_ssl_module \
-    --with-threads \
-    "
+LABEL maintainer="Evan Wies <evan@neomantra.net>"
 
-# These are not intended to be user-specified
-ARG _RESTY_CONFIG_DEPS="--with-openssl=/tmp/openssl-${RESTY_OPENSSL_VERSION} --with-pcre=/tmp/pcre-${RESTY_PCRE_VERSION}"
+ARG RESTY_IMAGE_BASE="centos"
+ARG RESTY_LUAROCKS_VERSION="2.4.4"
+ARG RESTY_RPM_FLAVOR=""
+ARG RESTY_RPM_VERSION="1.13.6.2-1.el7.centos"
+ARG RESTY_RPM_ARCH="x86_64"
 
+LABEL resty_luarocks_version="${RESTY_LUAROCKS_VERSION}"
+LABEL resty_rpm_flavor="${RESTY_RPM_FLAVOR}"
+LABEL resty_rpm_version="${RESTY_RPM_VERSION}"
+LABEL resty_rpm_arch="${RESTY_RPM_ARCH}"
 
-# 1) Install yum dependencies
-# 2) Download and untar OpenSSL, PCRE, and OpenResty
-# 3) Build OpenResty
-# 4) Cleanup
-
-RUN \
-    yum install -y \
-        gcc \
-        gcc-c++ \
-        gd-devel \
-        GeoIP-devel \
-        libxslt-devel \
+RUN yum-config-manager --add-repo https://openresty.org/package/${RESTY_IMAGE_BASE}/openresty.repo \
+    && yum install -y \
+        gettext \
         make \
-        perl \
-        perl-ExtUtils-Embed \
-        readline-devel \
+        openresty${RESTY_RPM_FLAVOR}-${RESTY_RPM_VERSION}.${RESTY_RPM_ARCH} \
+        openresty-opm-${RESTY_RPM_VERSION} \
+        openresty-resty-${RESTY_RPM_VERSION} \
         unzip \
-        zlib-devel \
     && cd /tmp \
-    && curl -fSL https://www.openssl.org/source/openssl-${RESTY_OPENSSL_VERSION}.tar.gz -o openssl-${RESTY_OPENSSL_VERSION}.tar.gz \
-    && tar xzf openssl-${RESTY_OPENSSL_VERSION}.tar.gz \
-    && curl -fSL https://ftp.csx.cam.ac.uk/pub/software/programming/pcre/pcre-${RESTY_PCRE_VERSION}.tar.gz -o pcre-${RESTY_PCRE_VERSION}.tar.gz \
-    && tar xzf pcre-${RESTY_PCRE_VERSION}.tar.gz \
-    && curl -fSL https://openresty.org/download/openresty-${RESTY_VERSION}.tar.gz -o openresty-${RESTY_VERSION}.tar.gz \
-    && tar xzf openresty-${RESTY_VERSION}.tar.gz \
-    && cd /tmp/openresty-${RESTY_VERSION} \
-    && ./configure -j${RESTY_J} ${_RESTY_CONFIG_DEPS} ${RESTY_CONFIG_OPTIONS} \
-    && make -j${RESTY_J} \
-    && make -j${RESTY_J} install \
-    && cd /tmp \
-    && rm -rf \
-        openssl-${RESTY_OPENSSL_VERSION} \
-        openssl-${RESTY_OPENSSL_VERSION}.tar.gz \
-        openresty-${RESTY_VERSION}.tar.gz openresty-${RESTY_VERSION} \
-        pcre-${RESTY_PCRE_VERSION}.tar.gz pcre-${RESTY_PCRE_VERSION} \
-    && curl -fSL http://luarocks.org/releases/luarocks-${RESTY_LUAROCKS_VERSION}.tar.gz -o luarocks-${RESTY_LUAROCKS_VERSION}.tar.gz \
+    && curl -fSL https://github.com/luarocks/luarocks/archive/${RESTY_LUAROCKS_VERSION}.tar.gz -o luarocks-${RESTY_LUAROCKS_VERSION}.tar.gz \
     && tar xzf luarocks-${RESTY_LUAROCKS_VERSION}.tar.gz \
     && cd luarocks-${RESTY_LUAROCKS_VERSION} \
     && ./configure \
         --prefix=/usr/local/openresty/luajit \
         --with-lua=/usr/local/openresty/luajit \
-        --lua-suffix=jit-2.1.0-beta2 \
+        --lua-suffix=jit-2.1.0-beta3 \
         --with-lua-include=/usr/local/openresty/luajit/include/luajit-2.1 \
     && make build \
     && make install \
     && cd /tmp \
     && rm -rf luarocks-${RESTY_LUAROCKS_VERSION} luarocks-${RESTY_LUAROCKS_VERSION}.tar.gz \
+    && yum remove -y make \
     && yum clean all \
     && ln -sf /dev/stdout /usr/local/openresty/nginx/logs/access.log \
     && ln -sf /dev/stderr /usr/local/openresty/nginx/logs/error.log
 
-ENTRYPOINT ["/usr/local/openresty/bin/openresty", "-g", "daemon off;"]
+# Unused, present for parity with other Dockerfiles
+# This makes some tooling/testing easier, as specifying a build-arg
+# and not consuming it fails the build.
+ARG RESTY_J="1"
+
+# Add additional binaries into PATH for convenience
+ENV PATH=$PATH:/usr/local/openresty/luajit/bin:/usr/local/openresty/nginx/sbin:/usr/local/openresty/bin
+
+# Copy nginx configuration files
+COPY nginx.conf /usr/local/openresty/nginx/conf/nginx.conf
+COPY nginx.vh.default.conf /etc/nginx/conf.d/default.conf
+
+CMD ["/usr/bin/openresty", "-g", "daemon off;"]
